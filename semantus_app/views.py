@@ -1,6 +1,7 @@
 """
 Views are responsible for handling requests and returning responses.
-This requires the use of serializers to convert data to JSON format.
+This requires the use of serializers to obtain data from models (i.e.
+data tables) and convert them to JSON format.
 """
 from rest_framework import status
 from rest_framework.views import APIView
@@ -13,9 +14,12 @@ from django.utils.text import slugify
 import firebase_admin.auth as auth
 
 from .serializers import UserDataSerializer
-from .models import UserData
+from .models import UserData, GameParticipants, GameGuesses, WordData
 
 import re
+import spacy
+import random
+import string
 
 """
 TODO: What requests do we need to support?
@@ -196,3 +200,258 @@ class SignupView(APIView):
                 {"detail": "Invalid firebase token provided."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+
+
+class JoinGameView(APIView):
+    """
+    Goal: Create or join a game
+
+    Requests:
+        - POST: Create a new game
+        - GET: Join an existing game
+    """
+
+    def get(self, request, *args, **kwargs):
+        """
+        GET-request to join a game
+
+        Request Headers:
+            - Authorization: Firebase Token for authentication
+
+        Request Parameters:
+            - game_id: id of the game to join
+        """
+        # derive player_id from token (else return unauthorized)
+        token = request.headers.get("Authorization")
+
+        # get game_id
+
+        # check if game_id exists (if not, specify in error that the game has ended)
+
+        # check if player is invited to game
+        # invited = is_invited(game_id, player_id)
+        invited = False
+
+        if invited:
+            # check if user accepts or declines invitation
+            invitation_accepted = False
+
+            if invitation_accepted:
+                # add user to GameParticipants table
+
+                # remove invitation from GameInvitations table
+
+                # serialize GameData of the game_id
+
+                # return successful response with game_data
+                return Response(status=status.HTTP_202_ACCEPTED)
+            else:
+                # remove invitation from GameInvitations table
+                return Response(status=status.HTTP_202_ACCEPTED)
+
+        else:
+            # throw unauthorized error
+            pass
+
+    def post(self, request, *args, **kwargs):
+        """
+        POST-request to create a game
+
+        Request Headers:
+            - Authorization: Firebase Token for authentication
+
+        Request Parameters:
+            - game_type: type of game to create (singleplayer, coop, versus)
+        """
+        # derive player_id from token (else return unauthorized)
+
+        # get game_type
+
+        # return 501 error if game_type is not singleplayer, coop or versus
+
+        # check if user is already part of a game with the same game_type
+
+        # if yes, return 409 error
+
+        # else create game
+
+        # add user to GameParticipants table
+
+        # serialize game_id
+
+        # generate random game_id with 20 characters
+        game_id = "".join(
+            random.choice(string.ascii_letters + string.digits) for _ in range(20)
+        )
+
+        # return game_id
+        pass
+
+
+class InviteView(APIView):
+    """
+    Goal: Invite friends to game
+
+    POST request for inviting a new person
+    """
+
+    def post(self, request, *args, **kwargs):
+        """
+        POST request to invite friend to a game
+        """
+        pass
+
+    pass
+
+
+class GameView(APIView):
+    """
+    Goal: Get and modify game data
+
+    GET request for getting game state
+
+    POST request for modifying game state (i.e. adding a new word)
+    """
+
+    def get(self, request, *args, **kwargs):
+        game_id = request.query_params.get("game_id", None)
+
+        # obtain user from token
+        firebase_data = verify_firebase_token(request)
+
+        # return error if firebase authentication fails
+        if isinstance(firebase_data, Response):
+            return firebase_data
+
+        user_id, user = firebase_data
+
+        # check if user is part of current game based on GameParticipants table
+        try:
+            GameParticipants.objects.get(game_id=game_id, user_id=user.username)
+
+            # if yes, serialize game data and return it
+
+        # else return unauthorized error
+        except GameParticipants.DoesNotExist:
+            return Response(
+                {"detail": "User is not part of this game."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+    def post(self, request, *args, **kwargs):
+        game_id = request.query_params.get("game_id", None)
+
+        # obtain game_id and word from request
+        word = request.query_params.get("word", None)
+
+        # obtain user from token
+        firebase_data = verify_firebase_token(request)
+
+        # return error if firebase authentication fails
+        if isinstance(firebase_data, Response):
+            return firebase_data
+
+        # otherwise, we get user_id and user
+        _, user = firebase_data
+
+        try:
+            # make sure that user is part of current game based on GameParticipants table
+            GameParticipants.objects.get(game_id=game_id, user_id=user.username)
+
+            # lemmatize word
+            language_model = spacy.load("de_core_news_sm")
+            doc = language_model(word)
+
+            if len(doc) == 0:
+                return Response(
+                    {"detail": "Unknown word provided."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            lemmatized_word = doc[0].lemma_
+
+            # check if lemmatized_word is in WordData table
+            WordData.objects.get(word=lemmatized_word)
+
+            # get word embeddings for lemmatized_word and target_word
+
+            # compute similarity to target word
+            similarity = 0
+
+            # add word to GameGuesses table
+            guess = GameGuesses(
+                game_id=game_id,
+                user_id=user.username,
+                guess=lemmatized_word,
+                similarity=similarity,
+            )
+
+            try:
+                # try to save new entry
+                guess.save()
+
+                # serialize GameData
+
+                # return GameData as part of response
+
+            # integrity error if word has already been guessed
+            except:
+                # serialize GameData
+
+                # return GameData as part of response
+
+                return Response(
+                    {"detail": "Word has already been guessed."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+        # user not found => unauthorized
+        except GameParticipants.DoesNotExist:
+            return Response(
+                {"detail": "User is not part of this game."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+
+def verify_firebase_token(request):
+    """
+    Verifies the firebase token passed in the request header.
+
+    Returns:
+        - uid: Firebase user id
+        - user: UserData object
+        - Response object if an error occurs
+    """
+    # obtain user_id from token
+    token = request.headers.get("Authorization")
+
+    # if no token is passed, we return a 401 error right away
+    if not token:
+        print("\nNo token provided!\n")
+        return Response(
+            {"detail": "Invalid input. Please provide a firebase token."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    # otherwise, we try to verify the token using firebase
+    try:
+        decoded_token = auth.verify_id_token(token)
+
+        uid = decoded_token["uid"]
+
+        try:
+            user = UserData.objects.get(firebase_id=uid)
+            return uid, user
+
+        except UserData.DoesNotExist:
+            return Response(
+                {"detail": "User does not exist. Please sign up."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+    # if firebase authentication fails, we get an exception and return a 401 error to the user
+    except Exception:
+        return Response(
+            {"detail": "Invalid firebase token provided."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
