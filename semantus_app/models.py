@@ -52,6 +52,7 @@ class WordData(models.Model):
 
     word_id = models.CharField(max_length=20, unique=True, null=True)
     word = models.CharField(max_length=20, unique=True, null=True)
+    vector = models.TextField(null=True)
 
 
 class Game(models.Model):

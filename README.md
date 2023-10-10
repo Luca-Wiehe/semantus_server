@@ -13,6 +13,8 @@ conda create semantus_env
 conda activate semantus_env
 conda install pip
 ~/opt/anaconda3/envs/semantus_env/bin/pip install -r requirements.txt
+
+python -m spacy download de_core_news_sm
 ```
 
 ## Running the server
