@@ -1,0 +1,6 @@
+**/*.sqlite3
+**/migrations
+**/__pycache__
+**/.vscode
+
+admin-sdk.json
