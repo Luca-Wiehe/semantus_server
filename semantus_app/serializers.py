@@ -4,8 +4,8 @@ Serializers are used to convert information obtained from Django database (store
 
 from rest_framework import serializers
 
-from .settings import all_fields
-from .models import UserData, Game
+from .settings import all_fields, game_fields
+from .models import UserData, Game, WordData
 
 
 class UserDataSerializer(serializers.ModelSerializer):
@@ -17,6 +17,24 @@ class UserDataSerializer(serializers.ModelSerializer):
         model = UserData
         fields = [x for x in all_fields if x != "firebase_id"]
 
+
+class GameSerializer(serializers.ModelSerializer):
+    """
+    Serializes all information from the Game model
+    """
+
+    class Meta:
+        model = Game
+        fields = game_fields
+
+class WordDataSerializer(serializers.ModelSerializer):
+    """
+    Serializes all information from the Word model
+    """
+
+    class Meta:
+        model = WordData
+        fields = ['word_id', 'word', 'vector']
 
 class GameDataSerializer(serializers.ModelSerializer):
     """

@@ -1,6 +1,6 @@
 """
-Django models define the format of data in the database. We have a database for user data, 
-a database for contact data, and a database for words.
+Django models define the format of data in the database. We have a database table for user data, 
+a table for contact data, and a table for words.
 """
 from django.db import models
 
@@ -52,6 +52,8 @@ class WordData(models.Model):
 
     word_id = models.CharField(max_length=20, unique=True, null=True)
     word = models.CharField(max_length=20, unique=True, null=True)
+
+    # vectors encoded as space-separated strings
     vector = models.TextField(null=True)
 
 

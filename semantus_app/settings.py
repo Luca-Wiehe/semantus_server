@@ -11,3 +11,5 @@ public_fields = [
     "username",
     "avatar",
 ]
+
+game_fields = ["game_id", "game_type", "creator_id", "start_time", "word_id"]

@@ -13,13 +13,14 @@ from django.utils.text import slugify
 
 import firebase_admin.auth as auth
 
-from .serializers import UserDataSerializer
-from .models import UserData, GameParticipants, GameGuesses, WordData
+from .serializers import UserDataSerializer, WordDataSerializer, GameSerializer
+from .models import UserData, GameParticipants, GameGuesses, WordData, Game
 
 import re
 import spacy
 import random
 import string
+from scipy.spatial import distance
 
 """
 TODO: What requests do we need to support?
@@ -263,11 +264,24 @@ class JoinGameView(APIView):
         Request Parameters:
             - game_type: type of game to create (singleplayer, coop, versus)
         """
-        # derive player_id from token (else return unauthorized)
+        # check firebase authentication in request header
+        firebase_data = verify_firebase_token(request)
+
+        # return error if firebase authentication fails
+        if isinstance(firebase_data, Response):
+            return firebase_data
+
+        # authentication successful => firebase_data consist of user_id and user
+        user_id, user = firebase_data
 
         # get game_type
+        game_type = request.query_params.get("game_type", None)
 
-        # return 501 error if game_type is not singleplayer, coop or versus
+        # return 400 error if game_type is not daily, singleplayer, coop or versus
+        if game_type not in ["daily", "singleplayer", "coop", "versus"]:
+            return Response(
+                data="Invalid game type provided", status=status.HTTP_400_BAD_REQUEST
+            )
 
         # check if user is already part of a game with the same game_type
 
@@ -284,7 +298,7 @@ class JoinGameView(APIView):
             random.choice(string.ascii_letters + string.digits) for _ in range(20)
         )
 
-        # return game_id
+        # return game_data
         pass
 
 
@@ -370,13 +384,28 @@ class GameView(APIView):
 
             lemmatized_word = doc[0].lemma_
 
-            # check if lemmatized_word is in WordData table
-            WordData.objects.get(word=lemmatized_word)
+            # serialize and obtain vector for current_word
+            current_word = WordData.objects.get(word=lemmatized_word)
+            serialized_word = WordDataSerializer(current_word)
+            word_vec = [
+                float(number) for number in serialized_word.data["vector"].split(" ")
+            ]
 
-            # get word embeddings for lemmatized_word and target_word
+            # serialize game and obtain vector for target_word
+            current_game = Game.objects.get(game_id=game_id)
+            game_serializer = GameSerializer(current_game)
 
-            # compute similarity to target word
-            similarity = 0
+            # obtain target word from GameID
+            target_word_str = game_serializer.data["word"]
+            target_word_model = WordData.objects.get(word=target_word_str)
+            serialized_target = WordDataSerializer(target_word_model)
+
+            target_vec = [
+                float(number) for number in serialized_target.data["vector"].split(" ")
+            ]
+
+            # compute similarity between word and target
+            similarity = 1 - distance.cosine(word_vec, target_vec)
 
             # add word to GameGuesses table
             guess = GameGuesses(

@@ -4,7 +4,14 @@ obtain a response and send this response back to the person who sent the request
 """
 
 from django.urls import path
-from .views import HomepageView, SignupView, LoginView, UsernameCheckView, JoinGameView
+from .views import (
+    HomepageView,
+    SignupView,
+    LoginView,
+    UsernameCheckView,
+    JoinGameView,
+    GameView,
+)
 
 urlpatterns = [
     path("", HomepageView.as_view(), name="homepage-view"),
@@ -12,4 +19,5 @@ urlpatterns = [
     path("check-username/", UsernameCheckView.as_view(), name="check-username"),
     path("login/", LoginView.as_view(), name="login"),
     path("join-game/", JoinGameView.as_view(), name="join-game"),
+    path("game", GameView.as_view(), name="game"),
 ]
